@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wheel of Names Pro</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            /* Latar belakang gradien biru gelap yang keren */
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color: #ffffff;
+        }
+
+        .container {
+            display: flex;
+            gap: 50px;
+            /* Efek kotak transparan (Glassmorphism) */
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            align-items: center;
+        }
+
+        /* Bagian Roda */
+        .wheel-container {
+            position: relative;
+            width: 450px;
+            height: 450px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            border-radius: 50%;
+            border: 8px solid #ffffff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+        }
+
+        /* Penunjuk (Panah) */
+        .pointer {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #ff3366;
+            z-index: 10;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.3));
+        }
+
+        /* Titik Tengah Roda */
+        .center-circle {
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            background-color: #ffffff;
+            color: #333;
+            border-radius: 50%;
+            border: 4px solid #ff3366;
+            z-index: 5;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 900;
+            font-size: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        
+        .center-circle:hover {
+            transform: scale(1.1);
+            background-color: #f8f9fa;
+        }
+
+        /* Bagian Input */
+        .input-container {
+            display: flex;
+            flex-direction: column;
+            width: 300px;
+        }
+
+        textarea {
+            flex-grow: 1;
+            padding: 15px;
+            font-size: 18px;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 10px;
+            resize: vertical;
+            margin-bottom: 15px;
+            min-height: 250px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            color: #333;
+            outline: none;
+        }
+        
+        textarea:focus {
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.5);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+
+        button.btn-spin {
+            background-color: #e74c3c;
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+        }
+        
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 3px rgba(0,0,0,0.2);
+        }
+
+        #result {
+            margin-top: 15px;
+            font-size: 28px;
+            font-weight: 900;
+            text-align: center;
+            color: #f1c40f;
+            min-height: 40px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="wheel-container">
+        <div class="pointer"></div>
+        <canvas id="wheelCanvas" width="450" height="450"></canvas>
+        <div class="center-circle" onclick="spinWheel()">SPIN</div>
+    </div>
+
+    <div class="input-container">
+        <!-- Tulisan placeholder sudah dihilangkan sepenuhnya -->
+        <textarea id="nameList"></textarea>
+        
+        <div class="btn-group">
+            <button onclick="updateWheel()">Update Roda</button>
+            <button class="btn-spin" onclick="spinWheel()">Putar!</button>
+        </div>
+        <div id="result"></div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    let names = [];
+    let colors = ['#f1c40f', '#e67e22', '#e74c3c', '#9b59b6', '#3498db', '#1abc9c', '#2ecc71', '#34495e', '#ff7f50', '#8e44ad'];
+    let currentRotation = 0;
+    let isSpinning = false;
+    let targetIndex = -1;
+
+    function getNamesFromInput() {
+        const rawText = document.getElementById('nameList').value;
+        // Pisahkan berdasarkan baris dan hilangkan karakter return (\r) jika ada
+        const rawNames = rawText.split('\n').map(n => n.replace(/\r/g, ''));
+        
+        targetIndex = -1; 
+        let cleanNames = [];
+
+        for (let i = 0; i < rawNames.length; i++) {
+            // Jika baris kosong setelah dibersihkan, lewati
+            if (rawNames[i].trim() === '') continue;
+
+            // RAHASIA: Jika nama diakhiri dengan SPASI (' '), jadikan dia target menang!
+            if (rawNames[i].endsWith(' ')) {
+                targetIndex = cleanNames.length; 
+            }
+            
+            // Masukkan nama ke roda (spasinya dibuang agar tidak terlihat aneh di roda)
+            cleanNames.push(rawNames[i].trim());
+        }
+        return cleanNames;
+    }
+
+    function drawWheel() {
+        names = getNamesFromInput();
+        if (names.length === 0) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            return;
+        }
+
+        const numSegments = names.length;
+        const anglePerSegment = (2 * Math.PI) / numSegments;
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = canvas.width / 2;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < numSegments; i++) {
+            const startAngle = i * anglePerSegment;
+            const endAngle = startAngle + anglePerSegment;
+
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+            ctx.fillStyle = colors[i % colors.length];
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(startAngle + anglePerSegment / 2);
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#fff';
+            // Ukuran font dinamis tergantung panjang teks
+            ctx.font = 'bold 22px sans-serif';
+            ctx.fillText(names[i], radius - 30, 8);
+            ctx.restore();
+        }
+    }
+
+    function updateWheel() {
+        if (!isSpinning) {
+            canvas.style.transition = 'none'; 
+            canvas.style.transform = `rotate(${currentRotation}deg)`;
+            drawWheel();
+        }
+    }
+
+    function spinWheel() {
+        if (isSpinning) return;
+        names = getNamesFromInput();
+        
+        if (names.length === 0) {
+            alert("Masukkan minimal 1 nama di kotak!");
+            return;
+        }
+
+        isSpinning = true;
+        document.getElementById('result').innerText = '';
+
+        const numSegments = names.length;
+        const degreesPerSegment = 360 / numSegments;
+        
+        let winnerIndex = targetIndex;
+        
+        if (winnerIndex === -1) {
+            winnerIndex = Math.floor(Math.random() * numSegments);
+        }
+
+        const offsetToTop = 90; 
+        const segmentCenterAngle = (winnerIndex * degreesPerSegment) + (degreesPerSegment / 2);
+        let targetAngle = 360 - segmentCenterAngle - offsetToTop;
+        
+        while(targetAngle < 0) targetAngle += 360;
+
+        // Berapa kali roda berputar sebelum berhenti (6 putaran)
+        const spins = 6 * 360; 
+        const currentMod = currentRotation % 360;
+        let additionalRotation = targetAngle - currentMod;
+        
+        if (additionalRotation <= 0) additionalRotation += 360;
+        
+        // Sedikit diacak berhentinya agar tidak selalu persis di tengah-tengah panah (biar natural)
+        const randomOffset = (Math.random() - 0.5) * (degreesPerSegment * 0.6);
+        
+        currentRotation += spins + additionalRotation + randomOffset;
+
+        canvas.style.transition = 'transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
+        canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+        setTimeout(() => {
+            isSpinning = false;
+            document.getElementById('result').innerText = `${names[winnerIndex]} Menang!`;
+            confettiEffect(); // Opsional, sekadar memanggil efek jika ada
+        }, 4000); 
+    }
+
+    // Auto update roda saat pertama kali di load jika ada teks
+    document.getElementById('nameList').addEventListener('input', updateWheel);
+    drawWheel();
+</script>
+</body>
+</html>
