@@ -12,7 +12,6 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            /* Latar belakang gradien biru gelap yang keren */
             background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
             color: #ffffff;
         }
@@ -20,7 +19,6 @@
         .container {
             display: flex;
             gap: 50px;
-            /* Efek kotak transparan (Glassmorphism) */
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
             padding: 40px;
@@ -30,7 +28,6 @@
             align-items: center;
         }
 
-        /* Bagian Roda */
         .wheel-container {
             position: relative;
             width: 450px;
@@ -47,7 +44,6 @@
             transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
         }
 
-        /* Penunjuk (Panah) */
         .pointer {
             position: absolute;
             top: -25px;
@@ -62,7 +58,6 @@
             filter: drop-shadow(0 4px 4px rgba(0,0,0,0.3));
         }
 
-        /* Titik Tengah Roda */
         .center-circle {
             position: absolute;
             width: 70px;
@@ -87,7 +82,6 @@
             background-color: #f8f9fa;
         }
 
-        /* Bagian Input */
         .input-container {
             display: flex;
             flex-direction: column;
@@ -156,6 +150,17 @@
             min-height: 40px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
+
+        /* Tombol Hapus Pemenang */
+        #removeBtn {
+            background-color: #f39c12; /* Warna oranye/kuning gelap */
+            width: 100%;
+            margin-top: 10px;
+            display: none; /* Awalnya disembunyikan */
+        }
+        #removeBtn:hover {
+            background-color: #e67e22;
+        }
     </style>
 </head>
 <body>
@@ -168,7 +173,6 @@
     </div>
 
     <div class="input-container">
-        <!-- Tulisan placeholder sudah dihilangkan sepenuhnya -->
         <textarea id="nameList"></textarea>
         
         <div class="btn-group">
@@ -176,6 +180,9 @@
             <button class="btn-spin" onclick="spinWheel()">Putar!</button>
         </div>
         <div id="result"></div>
+        
+        <!-- Tombol baru untuk menghapus pemenang -->
+        <button id="removeBtn" onclick="removeWinner()">Hapus Pemenang</button>
     </div>
 </div>
 
@@ -187,26 +194,29 @@
     let currentRotation = 0;
     let isSpinning = false;
     let targetIndex = -1;
+    
+    // Variabel untuk menyimpan data nama asli (termasuk spasinya) untuk dihapus nanti
+    let rawValidNames = [];
+    let lastWinnerRaw = "";
 
     function getNamesFromInput() {
         const rawText = document.getElementById('nameList').value;
-        // Pisahkan berdasarkan baris dan hilangkan karakter return (\r) jika ada
         const rawNames = rawText.split('\n').map(n => n.replace(/\r/g, ''));
         
         targetIndex = -1; 
         let cleanNames = [];
+        rawValidNames = []; 
 
         for (let i = 0; i < rawNames.length; i++) {
-            // Jika baris kosong setelah dibersihkan, lewati
             if (rawNames[i].trim() === '') continue;
 
-            // RAHASIA: Jika nama diakhiri dengan SPASI (' '), jadikan dia target menang!
+            // RAHASIA SPASI TETAP BERLAKU
             if (rawNames[i].endsWith(' ')) {
                 targetIndex = cleanNames.length; 
             }
             
-            // Masukkan nama ke roda (spasinya dibuang agar tidak terlihat aneh di roda)
             cleanNames.push(rawNames[i].trim());
+            rawValidNames.push(rawNames[i]); // Simpan persis seperti yang diketik
         }
         return cleanNames;
     }
@@ -244,7 +254,6 @@
             ctx.rotate(startAngle + anglePerSegment / 2);
             ctx.textAlign = 'right';
             ctx.fillStyle = '#fff';
-            // Ukuran font dinamis tergantung panjang teks
             ctx.font = 'bold 22px sans-serif';
             ctx.fillText(names[i], radius - 30, 8);
             ctx.restore();
@@ -270,6 +279,7 @@
 
         isSpinning = true;
         document.getElementById('result').innerText = '';
+        document.getElementById('removeBtn').style.display = 'none'; // Sembunyikan tombol saat putar
 
         const numSegments = names.length;
         const degreesPerSegment = 360 / numSegments;
@@ -286,16 +296,13 @@
         
         while(targetAngle < 0) targetAngle += 360;
 
-        // Berapa kali roda berputar sebelum berhenti (6 putaran)
         const spins = 6 * 360; 
         const currentMod = currentRotation % 360;
         let additionalRotation = targetAngle - currentMod;
         
         if (additionalRotation <= 0) additionalRotation += 360;
         
-        // Sedikit diacak berhentinya agar tidak selalu persis di tengah-tengah panah (biar natural)
         const randomOffset = (Math.random() - 0.5) * (degreesPerSegment * 0.6);
-        
         currentRotation += spins + additionalRotation + randomOffset;
 
         canvas.style.transition = 'transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
@@ -304,12 +311,37 @@
         setTimeout(() => {
             isSpinning = false;
             document.getElementById('result').innerText = `${names[winnerIndex]} Menang!`;
-            confettiEffect(); // Opsional, sekadar memanggil efek jika ada
+            
+            // Simpan data pemenang dan tampilkan tombol Hapus Pemenang
+            lastWinnerRaw = rawValidNames[winnerIndex];
+            document.getElementById('removeBtn').style.display = 'block';
         }, 4000); 
     }
 
-    // Auto update roda saat pertama kali di load jika ada teks
-    document.getElementById('nameList').addEventListener('input', updateWheel);
+    // Fungsi untuk menghapus nama yang menang
+    function removeWinner() {
+        const textarea = document.getElementById('nameList');
+        let lines = textarea.value.split('\n');
+        
+        // Cari nama di daftar teks yang sama persis (termasuk spasinya kalau ada)
+        const idx = lines.indexOf(lastWinnerRaw);
+        if (idx > -1) {
+            lines.splice(idx, 1); // Hapus baris tersebut
+            textarea.value = lines.join('\n'); // Masukkan kembali teks yang sudah dihapus ke kotak
+            updateWheel(); // Refresh roda
+        }
+        
+        // Sembunyikan kembali tombol dan bersihkan tulisan pemenang
+        document.getElementById('removeBtn').style.display = 'none';
+        document.getElementById('result').innerText = '';
+    }
+
+    // Sembunyikan tombol hapus jika user mengetik sesuatu secara manual di kotak
+    document.getElementById('nameList').addEventListener('input', () => {
+        document.getElementById('removeBtn').style.display = 'none';
+        document.getElementById('result').innerText = '';
+        updateWheel();
+    });
     drawWheel();
 </script>
 </body>
